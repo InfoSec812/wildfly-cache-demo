@@ -1,0 +1,16 @@
+<jboss-deployment-structure>
+  <deployment>
+    <dependencies>
+      <module name="org.hibernate" services="import" />
+      <module name="org.infinispan" services="import" />
+      <module name="jakarta.persistence.api" services="import" />
+      <module name="jakarta.servlet.api" services="import" />
+      <module name="jakarta.servlet.jsp.api" services="import" />
+      <module name="jakarta.servlet.jsp.api" services="import" />
+      <module name="org.wildfly.extension.opentelemetry-api" services="import" />
+    </dependencies>
+    <exclusions>
+      <module name="org.jboss.resteasy.resteasy-json-binding-provider"/>
+    </exclusions>
+  </deployment>
+</jboss-deployment-structure>
