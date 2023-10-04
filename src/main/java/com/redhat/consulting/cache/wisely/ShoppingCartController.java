@@ -2,12 +2,15 @@ package com.redhat.consulting.cache.wisely;
 
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.context.Scope;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
+
+import java.time.Instant;
 
 import static java.lang.String.format;
 
@@ -42,12 +45,20 @@ public class ShoppingCartController {
     return cart;
   }
 
+  @GET
+  @Path("/{sku}")
+  public CartItem addItemToCartWithGet(@PathParam("sku") String sku, @QueryParam("quantity") @DefaultValue("1") @PositiveOrZero int quantity) {
+    return addItemToCart(sku, quantity);
+  }
+
   @POST
   @Path("/{sku}")
   public CartItem addItemToCart(@PathParam("sku") String sku, @QueryParam("quantity") @DefaultValue("1") @PositiveOrZero int quantity) {
     Span cacheRetrieveSpan = tracer.spanBuilder("cache-retrieve").startSpan();
-    cacheRetrieveSpan.makeCurrent();
-    ShoppingCart cart = (ShoppingCart) request.getSession().getAttribute("cart");
+    ShoppingCart cart;
+    try (Scope scope = cacheRetrieveSpan.makeCurrent()) {
+      cart = (ShoppingCart) request.getSession().getAttribute("cart");
+    }
     cacheRetrieveSpan.end();
     if (cart == null) {
       cart = new ShoppingCart();
@@ -62,23 +73,37 @@ public class ShoppingCartController {
       item = new CartItem(inventoryItem, quantity);
     }
     item.setQuantity(quantity);
-    Span cacheUpdateSpan = tracer.spanBuilder("cache-update").startSpan();
-    cacheUpdateSpan.makeCurrent();
     cart.addItem(item);
+    cart.setLastModified(Instant.now().toEpochMilli());
+    Span cacheUpdateSpan = tracer.spanBuilder("cache-update").startSpan();
+    try (Scope scope = cacheUpdateSpan.makeCurrent()) {
+      request.getSession().setAttribute("cart", cart);
+    }
     cacheUpdateSpan.end();
 
-    request.getSession().setAttribute("cart", cart);
     return item;
   }
 
   @DELETE
   @Path("/{sku}")
   public void removeFromCart(@PathParam("sku") String sku) {
-    ShoppingCart cart = (ShoppingCart) request.getSession().getAttribute("cart");
+    Span cacheReadSpan = tracer.spanBuilder("cache-read").startSpan();
+    ShoppingCart cart;
+    try (Scope scope = cacheReadSpan.makeCurrent()) {
+      cart = (ShoppingCart) request.getSession().getAttribute("cart");
+    }
+    cacheReadSpan.end();
     if (cart == null) {
       throw new BadRequestException("The shopping cart has not been initialized and has no contents");
     }
     cart.removeItemBySku(sku);
+
+    Span cacheUpdateSpan = tracer.spanBuilder("cache-update").startSpan();
+    try (Scope scope = cacheUpdateSpan.makeCurrent()) {
+      request.getSession().setAttribute("cart", cart);
+    }
+    cacheUpdateSpan.end();
+
     request.getSession().setAttribute("cart", cart);
   }
 }

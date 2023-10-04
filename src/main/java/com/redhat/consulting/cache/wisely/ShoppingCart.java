@@ -3,15 +3,16 @@ package com.redhat.consulting.cache.wisely;
 import lombok.Data;
 
 import java.beans.Transient;
+import java.io.Serializable;
 import java.time.Instant;
 import java.util.*;
 
 @Data
-public class ShoppingCart {
+public class ShoppingCart implements Serializable {
 
-  private Instant created = Instant.now();
+  private long created = Instant.now().toEpochMilli();
 
-  private Instant lastModified = Instant.now();
+  private long lastModified = Instant.now().toEpochMilli();
 
   private Map<String, CartItem> items = new HashMap<>();
 
