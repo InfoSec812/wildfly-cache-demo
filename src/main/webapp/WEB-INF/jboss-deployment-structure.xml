@@ -1,5 +1,8 @@
-<jboss-deployment-structure>
+<jboss-deployment-structure xmlns="urn:jboss:deployment-structure:1.3"
+                            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                            xsi:schemaLocation="urn:jboss:deployment-structure:1.3 https://www.jboss.org/schema/jbossas/jboss-deployment-structure-1_3.xsd">
   <deployment>
+    <module-alias name="cache-wisely" />
     <dependencies>
       <module name="org.hibernate" services="import" />
       <module name="org.infinispan" services="import" />
