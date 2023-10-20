@@ -1,17 +1,16 @@
 package com.redhat.consulting.cache.wisely;
 
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.inject.Default;
-import jakarta.inject.Inject;
-import jakarta.persistence.EntityManager;
-
+import javax.enterprise.context.ApplicationScoped;
+import javax.enterprise.inject.Default;
+import javax.inject.Inject;
+import javax.persistence.EntityManager;
 import java.util.List;
 
 @ApplicationScoped
 @Default
 public class InventoryDAOImpl implements InventoryDAO {
 
-  private EntityManager em;
+  private final EntityManager em;
 
   @Inject
   public InventoryDAOImpl(EntityManager em) {

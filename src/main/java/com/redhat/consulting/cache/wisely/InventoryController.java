@@ -1,14 +1,13 @@
 package com.redhat.consulting.cache.wisely;
 
-import jakarta.enterprise.context.RequestScoped;
-import jakarta.enterprise.inject.Default;
-import jakarta.inject.Inject;
-import jakarta.ws.rs.*;
-import jakarta.ws.rs.core.MediaType;
-
+import javax.enterprise.context.RequestScoped;
+import javax.inject.Inject;
+import javax.ws.rs.*;
+import javax.ws.rs.core.MediaType;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.stream.Collectors;
 
 @RequestScoped
 @Path("/items")
@@ -18,12 +17,6 @@ public class InventoryController {
 
   @Inject
   InventoryDAO dao;
-
-//  @Inject
-//  public InventoryController(InventoryDAO dao) {
-//    super();
-//    this.dao = dao;
-//  }
 
   @GET
   public List<Item> getItems(@QueryParam("skip") @DefaultValue("-1") int skipCount, @QueryParam("count") @DefaultValue("-1") int resultCount, @QueryParam("randomize") @DefaultValue("false") boolean randomize) {
@@ -36,7 +29,7 @@ public class InventoryController {
       result = result.subList(skipCount, listLen);
     }
     if (resultCount > 0) {
-      return result.stream().limit(resultCount).toList();
+      return result.stream().limit(resultCount).collect(Collectors.toList());
     }
     return result;
   }

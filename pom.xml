@@ -12,19 +12,26 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <maven.compiler.target>17</maven.compiler.target>
-    <maven.compiler.source>17</maven.compiler.source>
-    <maven.compiler.release>17</maven.compiler.release>
+    <maven.compiler.target>11</maven.compiler.target>
+    <maven.compiler.source>11</maven.compiler.source>
+    <maven.compiler.release>11</maven.compiler.release>
     <junit.version>5.9.2</junit.version>
-    <wildfly.version>29.0.1.Final</wildfly.version>
+    <jboss.version>7.4.12.GA</jboss.version>
   </properties>
 
   <dependencyManagement>
     <dependencies>
       <dependency>
-        <groupId>org.wildfly.bom</groupId>
-        <artifactId>wildfly-ee-with-tools</artifactId>
-        <version>${wildfly.version}</version>
+        <groupId>org.jboss.bom</groupId>
+        <artifactId>eap-runtime-artifacts</artifactId>
+        <version>${jboss.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.jboss.bom</groupId>
+        <artifactId>jboss-eap-xp-microprofile</artifactId>
+        <version>4.0.0.GA</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
@@ -43,20 +50,21 @@
       <scope>provided</scope>
     </dependency>
     <dependency>
-      <groupId>org.hibernate.orm</groupId>
+      <groupId>org.hibernate</groupId>
       <artifactId>hibernate-core</artifactId>
       <scope>provided</scope>
     </dependency>
+    <!-- Logging start -->
     <dependency>
-      <groupId>org.hibernate.orm</groupId>
-      <artifactId>hibernate-jpamodelgen</artifactId>
-      <scope>provided</scope>
+      <artifactId>slf4j-api</artifactId>
+      <groupId>org.slf4j</groupId>
+      <type>jar</type>
+      <version>2.0.7</version>
     </dependency>
-    <!-- Jakarta Activation needed for JPA model generation -->
     <dependency>
-      <groupId>jakarta.activation</groupId>
-      <artifactId>jakarta.activation-api</artifactId>
-      <scope>provided</scope>
+      <groupId>org.jboss.slf4j</groupId>
+      <artifactId>slf4j-jboss-logmanager</artifactId>
+      <version>2.0.1.Final</version>
     </dependency>
 
     <!-- Bean Validation Implementation
@@ -65,6 +73,11 @@
     <dependency>
       <groupId>org.hibernate.validator</groupId>
       <artifactId>hibernate-validator</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.hibernate.validator</groupId>
+      <artifactId>hibernate-validator-cdi</artifactId>
       <scope>provided</scope>
     </dependency>
 
@@ -76,21 +89,27 @@
     </dependency>
     <dependency>
       <groupId>org.infinispan</groupId>
-      <artifactId>infinispan-core-jakarta</artifactId>
+      <artifactId>infinispan-core</artifactId>
       <scope>provided</scope>
     </dependency>
 
     <!-- Import the EJB API, we use provided scope as the API is included in EAP -->
     <dependency>
-      <groupId>jakarta.ejb</groupId>
-      <artifactId>jakarta.ejb-api</artifactId>
+      <groupId>org.jboss.spec.javax.ejb</groupId>
+      <artifactId>jboss-ejb-api_3.2_spec</artifactId>
       <scope>provided</scope>
     </dependency>
 
     <!-- Import the Servlet API, we use provided scope as the API is included in EAP -->
     <dependency>
-      <groupId>jakarta.servlet</groupId>
-      <artifactId>jakarta.servlet-api</artifactId>
+      <groupId>org.jboss.spec.javax.servlet</groupId>
+      <artifactId>jboss-servlet-api_4.0_spec</artifactId>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>jakarta.enterprise</groupId>
+      <artifactId>jakarta.enterprise.cdi-api</artifactId>
       <scope>provided</scope>
     </dependency>
     <dependency>
@@ -99,24 +118,23 @@
       <scope>provided</scope>
     </dependency>
     <dependency>
-      <groupId>jakarta.ws.rs</groupId>
-      <artifactId>jakarta.ws.rs-api</artifactId>
+      <groupId>org.jboss.spec.javax.ws.rs</groupId>
+      <artifactId>jboss-jaxrs-api_2.1_spec</artifactId>
       <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.jboss.resteasy</groupId>
-      <artifactId>resteasy-core-spi</artifactId>
+      <artifactId>resteasy-jaxrs</artifactId>
       <scope>provided</scope>
     </dependency>
     <dependency>
-      <groupId>jakarta.servlet.jsp</groupId>
-      <artifactId>jakarta.servlet.jsp-api</artifactId>
+      <groupId>org.jboss.spec.javax.servlet.jsp</groupId>
+      <artifactId>jboss-jsp-api_2.3_spec</artifactId>
       <scope>provided</scope>
     </dependency>
     <dependency>
-      <groupId>org.wildfly</groupId>
-      <artifactId>wildfly-opentelemetry-api</artifactId>
-      <version>${wildfly.version}</version>
+      <groupId>org.eclipse.microprofile.metrics</groupId>
+      <artifactId>microprofile-metrics-api</artifactId>
       <scope>provided</scope>
     </dependency>
     <dependency>
@@ -131,6 +149,14 @@
       <version>42.5.1.redhat-00001</version>
       <scope>provided</scope>
     </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-api</artifactId>
+      <version>5.10.0</version>
+      <scope>test</scope>
+    </dependency>
+
   </dependencies>
 
   <build>

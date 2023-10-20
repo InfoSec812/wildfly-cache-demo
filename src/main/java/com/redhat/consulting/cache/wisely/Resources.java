@@ -1,22 +1,15 @@
 package com.redhat.consulting.cache.wisely;
 
-import jakarta.annotation.Resource;
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.context.RequestScoped;
-import jakarta.enterprise.event.Observes;
-import jakarta.enterprise.inject.Default;
-import jakarta.enterprise.inject.Disposes;
-import jakarta.enterprise.inject.Produces;
-import jakarta.enterprise.inject.spi.AfterBeanDiscovery;
-import jakarta.enterprise.inject.spi.AfterDeploymentValidation;
-import jakarta.enterprise.inject.spi.BeanManager;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.EntityManagerFactory;
-import jakarta.persistence.PersistenceUnit;
-import org.flywaydb.core.Flyway;
 import org.jboss.logging.Logger;
 
-import javax.sql.DataSource;
+import javax.enterprise.context.ApplicationScoped;
+import javax.enterprise.context.RequestScoped;
+import javax.enterprise.inject.Default;
+import javax.enterprise.inject.Disposes;
+import javax.enterprise.inject.Produces;
+import javax.persistence.EntityManager;
+import javax.persistence.EntityManagerFactory;
+import javax.persistence.PersistenceUnit;
 
 @ApplicationScoped
 public class Resources {

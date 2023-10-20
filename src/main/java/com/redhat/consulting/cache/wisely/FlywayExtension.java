@@ -1,10 +1,10 @@
 package com.redhat.consulting.cache.wisely;
 
-import jakarta.enterprise.event.Observes;
-import jakarta.enterprise.inject.spi.AfterDeploymentValidation;
-import jakarta.enterprise.inject.spi.BeanManager;
-import jakarta.enterprise.inject.spi.BeforeBeanDiscovery;
-import jakarta.enterprise.inject.spi.Extension;
+import javax.enterprise.event.Observes;
+import javax.enterprise.inject.spi.AfterDeploymentValidation;
+import javax.enterprise.inject.spi.BeanManager;
+import javax.enterprise.inject.spi.BeforeBeanDiscovery;
+import javax.enterprise.inject.spi.Extension;
 import org.flywaydb.core.Flyway;
 import org.jboss.logging.Logger;
 
@@ -30,7 +30,8 @@ public class FlywayExtension implements Extension {
       Object result = ctx.lookup("java:jboss/datasources/cachestore");
       LOG.info("Retrieved named JNDI Object");
 
-      if (result instanceof DataSource ds) {
+      if (result instanceof DataSource) {
+        var ds = (DataSource) result;
         LOG.info("Flyway Migration started");
         var flyway = Flyway.configure().dataSource(ds).load();
         flyway.migrate();

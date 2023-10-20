@@ -1,8 +1,8 @@
 package com.redhat.consulting.cache.wisely;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import javax.persistence.Entity;
+import javax.persistence.Id;
+import javax.persistence.Table;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -22,5 +22,4 @@ public class Item implements Serializable {
   private String description;
 
   private int quantityInStock = 0;
-
 }
