@@ -2,6 +2,7 @@ package com.redhat.consulting.cache.wisely;
 
 import org.eclipse.microprofile.metrics.Timer;
 import org.eclipse.microprofile.metrics.annotation.Metric;
+import org.jboss.resteasy.annotations.cache.Cache;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

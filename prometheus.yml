@@ -25,6 +25,22 @@ scrape_configs:
           - '192.168.100.15:9990'
           - '192.168.100.20:9990'
   # The job name is added as a label `job=` to any timeseries scraped from this config.
+  - job_name: 'haproxy'
+    metrics_path: /metrics
+    scrape_interval: 5s
+    static_configs:
+      - targets:
+          - '192.168.100.60:8004'
+  - job_name: 'stap'
+    metrics_path: /metrics
+    scrape_interval: 5s
+    static_configs:
+      - targets:
+          - '192.168.100.10:9900'
+          - '192.168.100.15:9900'
+          - '192.168.100.20:9900'
+          - '192.168.100.60:9900'
+          - '192.168.100.70:9900'
   - job_name: 'prometheus'
     static_configs:
     - targets: ['localhost:9090']

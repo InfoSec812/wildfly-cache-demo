@@ -2,7 +2,6 @@ package com.redhat.consulting.cache.wisely;
 
 import org.junit.jupiter.api.Test;
 
-import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
@@ -10,29 +9,18 @@ import java.security.GeneralSecurityException;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.IntStream;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
 
 public class ShoppingCartCacheIT {
-
-  private ExecutorService threadPool;
-
-  private static final int CLIENT_COUNT = 20;
+  private static final int CLIENT_COUNT = 40;
+  private SSLContext sc;
+  Random rand = new Random();
 
   @Test
   public void initializeThreads() throws InterruptedException {
-    threadPool = Executors.newFixedThreadPool(CLIENT_COUNT,
-      new ThreadFactory() {
-        @Override
-        public Thread newThread(Runnable r) {
-          Thread t = Executors.defaultThreadFactory().newThread(r);
-          t.setDaemon(true);
-          return t;
-        }
-      });
+    System.setProperty("jdk.internal.httpclient.disableHostnameVerification", Boolean.TRUE.toString());
 
     TrustManager[] trustAllCerts = new TrustManager[] {
       new X509TrustManager() {
@@ -49,24 +37,60 @@ public class ShoppingCartCacheIT {
     };
 
     // Install the all-trusting trust manager
-    SSLContext sc;
     try {
       sc = SSLContext.getInstance("SSL");
       sc.init(null, trustAllCerts, new java.security.SecureRandom());
-      IntStream.of(CLIENT_COUNT).forEach(i -> this.createNewClientThread(sc));
-      threadPool.awaitTermination(2, TimeUnit.HOURS);
+
+      List<Thread> threads = new ArrayList<>();
+
+      loadUpThreads(threads, CLIENT_COUNT);
+
+      while (threads.stream().anyMatch(Thread::isAlive)) {
+        int threadCount = (int) threads.stream().filter(Thread::isAlive).count();
+        System.err.printf("MAIN - Live thread count: %d%n", threadCount);
+        if (threadCount == CLIENT_COUNT) {
+          randomlyKillSomeThreads(threads, threadCount);
+        } else {
+          loadUpThreads(threads, (CLIENT_COUNT - threadCount));
+        }
+        Thread.sleep(5000);
+      }
+//      List<Thread> threadFutures = IntStream.of(CLIENT_COUNT)
+//        .mapToObj(this::createNewClientThread)
+//        .map(Thread::new)
+//        .peek(t -> t.setDaemon(true))
+//        .peek(Thread::run)
+//        .peek(f -> System.err.printf("New thread added to pool%n"))
+//        .collect(Collectors.toList());
+
     } catch (GeneralSecurityException e) {
       e.printStackTrace();
     }
   }
 
-  private void createNewClientThread(SSLContext sc) {
-    var thread = CartLoadThread.builder()
+  private void randomlyKillSomeThreads(List<Thread> threads, int threadCount) {
+    int killCount = rand.nextInt(5);
+    for (int x = 0; x < killCount; x++) {
+
+    }
+  }
+
+  private void loadUpThreads(List<Thread> threads, int threadCount) {
+    for (int i = 0; i < threadCount; i++) {
+      var runnable = createNewClientThread();
+      var newThread = new Thread(runnable);
+      newThread.setDaemon(true);
+      threads.add(newThread);
+      newThread.start();
+    }
+  }
+
+  private CartLoadThread createNewClientThread() {
+    return CartLoadThread.builder()
                    .baseUrl(CartLoadThread.DEFAULT_URL)
                    .duration(Duration.of(2, ChronoUnit.HOURS))
                    .sslContext(sc)
                    .build();
-    threadPool.submit(thread);
   }
 
 }

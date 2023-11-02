@@ -7,16 +7,18 @@ import javax.json.JsonObject;
 import javax.json.bind.Jsonb;
 import javax.json.bind.JsonbBuilder;
 import javax.json.bind.JsonbException;
+import javax.net.ssl.SNIMatcher;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLParameters;
 import java.io.IOException;
 import java.net.CookieManager;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
+import java.net.http.*;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import java.util.stream.Collectors;
 
@@ -26,9 +28,10 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class CartLoadThread implements Runnable {
 
-  public static final String DEFAULT_URL = "http://192.168.100.60:8080/cache-wisely/api/v1";
+  public static final String DEFAULT_URL = "https://192.168.100.60:8443/cache-wisely/api/v1";
 
   private static final int ITEM_COUNT = 40;
+  public static final int HTTP_REQUEST_TIMEOUT = 500;
 
   private final String baseUrl;
 
@@ -54,23 +57,29 @@ public class CartLoadThread implements Runnable {
   public void run() {
     Instant start = Instant.now();
     var rand = new Random();
-    System.err.println("Starting new thread");
+    // System.err.println("Starting new thread");
+    var httpRequestTimeout = Duration.of(HTTP_REQUEST_TIMEOUT, ChronoUnit.MILLIS);
+
+    String threadName = Thread.currentThread().getName();
 
     try {
 
       var client = HttpClient.newBuilder()
+                     .connectTimeout(Duration.of(10, ChronoUnit.SECONDS))
+                     .followRedirects(HttpClient.Redirect.NORMAL)
                      .cookieHandler(cookieMgr)
                      .sslContext(sslContext)
                      .build();
 
       // Load an initial cart with 40 items
       String randomSkusUri = format("%s/items?count=%d&randomize=true", baseUrl, ITEM_COUNT);
-      System.err.printf("Make request for random SKUs: %s%n%n", randomSkusUri);
+      // System.err.printf("%s - Make request for random SKUs: %s%n%n", threadName, randomSkusUri);
       var skuItems = HttpRequest.newBuilder(URI.create(randomSkusUri))
+                       .GET()
                        .build();
 
       HttpResponse<String> randSkuResponse = client.send(skuItems, HttpResponse.BodyHandlers.ofString());
-      System.err.printf("Response Status: %d%n", randSkuResponse.statusCode());
+      // System.err.printf("%s - Response Status: %d%n", threadName, randSkuResponse.statusCode());
       var skuJsonResponse = randSkuResponse.body();
 
       JsonArray skuArray = jsonb.fromJson(skuJsonResponse, JsonArray.class);
@@ -84,69 +93,91 @@ public class CartLoadThread implements Runnable {
                      .GET()
                      .build();
       var addSkusResponse = client.send(addReq, HttpResponse.BodyHandlers.ofString());
-      System.err.printf("Add SKUs status: {}", addSkusResponse.statusCode());
-      System.err.printf("Added multiple SKUs '%s' to cart%n", skuList);
+
+      if (addSkusResponse.statusCode() != 200) {
+         System.err.printf("%s - Failed to initialize cart: %d%n", threadName, addSkusResponse.statusCode());
+        return;
+      }
+      // System.err.printf("%s - Add SKUs status: %d%n", threadName, addSkusResponse.statusCode());
+      // System.err.printf("%s - Added multiple SKUs '%s' to cart%n", threadName, skuList);
       client = null;
 
       while (Duration.between(start, Instant.now()).compareTo(duration) <= 0) {
 
-        client = HttpClient.newBuilder()
-                       .cookieHandler(cookieMgr)
-                       .sslContext(sslContext)
-                       .build();
-        Thread.sleep(1000 + rand.nextInt(100));
+        try {
+          client = HttpClient.newBuilder()
+                         .cookieHandler(cookieMgr)
+                         .sslContext(sslContext)
+                         .connectTimeout(Duration.of(5, ChronoUnit.SECONDS))
+                         .build();
+          synchronized (this) {
+            this.wait(1000 + rand.nextInt(1000));
+          }
 
-        // Get current cart contents
-        var getCart = HttpRequest.newBuilder()
-                        .uri(URI.create(format("%s/cart", baseUrl))).build();
+          // Get current cart contents
+          var getCart = HttpRequest.newBuilder()
+                          .uri(URI.create(format("%s/cart", baseUrl)))
+                          .GET()
+                          .timeout(httpRequestTimeout)
+                          .build();
 
-        var cartResponse = client.send(getCart, HttpResponse.BodyHandlers.ofString()).body();
-        var cartData = jsonb.fromJson(cartResponse, ShoppingCart.class);
-        System.err.printf("Retrieved cart with '%d' items%n", cartData.getItems().size());
+          var cartResponse = client.send(getCart, HttpResponse.BodyHandlers.ofString());
+          if (cartResponse.statusCode() == 200) {
+            var cartData = jsonb.fromJson(cartResponse.body(), ShoppingCart.class);
+            if (!cartData.getItems().isEmpty()) {
 
-        // Select a random new SKU to add to the cart
-        var getRandomItem = HttpRequest
-                              .newBuilder(URI.create(format("%s/items?count=1&randomize=true", baseUrl)))
-                              .GET()
-                              .build();
-        var itemResponse = client.send(getRandomItem, HttpResponse.BodyHandlers.ofString()).body();
-        var itemData = jsonb.fromJson(itemResponse, JsonArray.class);
-        var newSku = itemData.get(0).asJsonObject().getString("sku");
+              // Select a random new SKU to add to the cart
+              var getRandomItem = HttpRequest
+                                    .newBuilder(URI.create(format("%s/items?count=1&randomize=true", baseUrl)))
+                                    .GET()
+                                    .timeout(httpRequestTimeout)
+                                    .build();
+              var itemResponse = client.send(getRandomItem, HttpResponse.BodyHandlers.ofString()).body();
+              var itemData = jsonb.fromJson(itemResponse, JsonArray.class);
+              var newSku = itemData.get(0).asJsonObject().getString("sku");
 
-        System.err.printf("Adding item with SKU '%s' to cart%n", newSku);
+              // System.err.printf("%s - Adding item with SKU '%s' to cart%n", threadName, newSku);
 
-        // Add new SKU to cart
-        var addSku = HttpRequest.newBuilder()
-                       .uri(URI.create(format("%s/cart/%s", baseUrl, newSku)))
-                       .GET()
-                       .build();
-        client.send(addSku, HttpResponse.BodyHandlers.ofString());
+              // Add new SKU to cart
+              var addSku = HttpRequest.newBuilder()
+                             .uri(URI.create(format("%s/cart/%s", baseUrl, newSku)))
+                             .GET()
+                             .timeout(httpRequestTimeout)
+                             .build();
+              client.send(addSku, HttpResponse.BodyHandlers.ofString());
 
-        // Delete a random item from the cart
-        var keyList = new ArrayList<>(cartData.getItems().keySet());
+              // Delete a random item from the cart
+              var keyList = new ArrayList<>(cartData.getItems().keySet());
 
-        System.err.printf("Number of keys: %d%n", keyList.size());
+              // System.err.printf("%s - Number of keys: %d%n", threadName, keyList.size());
 
-        var skuToDelete = keyList.get(rand.nextInt(keyList.size()));
-        var deleteCartItem = HttpRequest
-                               .newBuilder(URI.create(format("%s/cart/%s", baseUrl, skuToDelete)))
-                               .DELETE()
-                               .build();
-        client.send(deleteCartItem, HttpResponse.BodyHandlers.ofString());
+              var skuToDelete = keyList.get(rand.nextInt(keyList.size()));
+              var deleteCartItem = HttpRequest
+                                     .newBuilder(URI.create(format("%s/cart/%s", baseUrl, skuToDelete)))
+                                     .DELETE()
+                                     .timeout(httpRequestTimeout)
+                                     .build();
+              client.send(deleteCartItem, HttpResponse.BodyHandlers.ofString());
 
-        System.err.printf("Deleted item with SKU '%s' from the cart%n", skuToDelete);
-        client = null;
+              // System.err.printf("%s - Deleted item with SKU '%s' from the cart%n", threadName, skuToDelete);
+              client = null;
+            } else {
+               System.err.printf("%s - Retrieved cart with '%d' items%n", threadName, cartData.getItems().size());
+            }
+          } else {
+            System.err.printf("%s - Cart retrieval failed%n", threadName);
+          }
+        } catch (HttpTimeoutException hte) {
+          System.err.printf("%s - HttpTimeoutException: %s%n", threadName, hte.getLocalizedMessage());
+        }
       }
     } catch(IOException ioe) {
-      System.err.printf("IOException: %s%n", ioe.getLocalizedMessage());
-      ioe.printStackTrace();
+      System.err.printf("%s - IOException: %s%n", threadName, ioe.getLocalizedMessage());
     } catch(InterruptedException ie) {
-      System.err.printf("InterruptedException: %s%n", ie.getLocalizedMessage());
-      ie.printStackTrace();
+      System.err.printf("%s - InterruptedException: %s%n", threadName, ie.getLocalizedMessage());
     } catch (JsonbException je) {
-      System.err.printf("JsonbException: %s%n", je.getLocalizedMessage());
-      je.printStackTrace();
+      System.err.printf("%s - JsonbException: %s%n", threadName, je.getLocalizedMessage());
     }
-    System.err.printf("Thread ended: %s%n", Thread.currentThread().getName());
+    System.err.printf("%s - Thread ended: %s%n", threadName, Thread.currentThread().getName());
   }
 }
