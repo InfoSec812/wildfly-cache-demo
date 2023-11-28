@@ -6,6 +6,7 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import java.security.GeneralSecurityException;
+import java.security.NoSuchAlgorithmException;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -13,9 +14,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+import static java.lang.String.format;
+
 public class ShoppingCartCacheIT {
-  private static final int CLIENT_COUNT = 40;
+  public static final int CLIENT_COUNT = 100;
   private SSLContext sc;
+
+  private final List<String> hostList = List.of("192.168.100.10", "192.168.100.15", "192.168.100.20");
   Random rand = new Random();
 
   @Test
@@ -48,44 +53,38 @@ public class ShoppingCartCacheIT {
       while (threads.stream().anyMatch(Thread::isAlive)) {
         int threadCount = (int) threads.stream().filter(Thread::isAlive).count();
         System.err.printf("MAIN - Live thread count: %d%n", threadCount);
-        if (threadCount == CLIENT_COUNT) {
-          randomlyKillSomeThreads(threads, threadCount);
-        } else {
+        if (threadCount < CLIENT_COUNT) {
           loadUpThreads(threads, (CLIENT_COUNT - threadCount));
         }
-        Thread.sleep(5000);
+        synchronized (this) {
+          this.wait(5000);
+        }
       }
-//      List<Thread> threadFutures = IntStream.of(CLIENT_COUNT)
-//        .mapToObj(this::createNewClientThread)
-//        .map(Thread::new)
-//        .peek(t -> t.setDaemon(true))
-//        .peek(Thread::run)
-//        .peek(f -> System.err.printf("New thread added to pool%n"))
-//        .collect(Collectors.toList());
 
     } catch (GeneralSecurityException e) {
       e.printStackTrace();
     }
   }
 
-  private void randomlyKillSomeThreads(List<Thread> threads, int threadCount) {
-    int killCount = rand.nextInt(5);
-    for (int x = 0; x < killCount; x++) {
-
-    }
-  }
-
   private void loadUpThreads(List<Thread> threads, int threadCount) {
     for (int i = 0; i < threadCount; i++) {
-      var runnable = createNewClientThread();
-      var newThread = new Thread(runnable);
-      newThread.setDaemon(true);
-      threads.add(newThread);
-      newThread.start();
+      try {
+        var runnable = createNewClientThread();
+        var newThread = new Thread(runnable);
+        newThread.setDaemon(true);
+        threads.add(newThread);
+        newThread.start();
+      } catch (NoSuchAlgorithmException nsae) {
+        nsae.printStackTrace();
+      }
     }
   }
 
-  private CartLoadThread createNewClientThread() {
+  private CartLoadThread createNewClientThread() throws NoSuchAlgorithmException {
+
+    String host = hostList.get(rand.nextInt(hostList.size()));
+    String baseUrl = format("http://%s:8080/cache-wisely/api/v1", host);
+
     return CartLoadThread.builder()
                    .baseUrl(CartLoadThread.DEFAULT_URL)
                    .duration(Duration.of(2, ChronoUnit.HOURS))

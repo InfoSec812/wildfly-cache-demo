@@ -1,5 +1,7 @@
 package com.redhat.consulting.cache.wisely;
 
+import org.jboss.resteasy.annotations.cache.Cache;
+
 import javax.enterprise.context.RequestScoped;
 import javax.inject.Inject;
 import javax.ws.rs.*;
@@ -19,29 +21,20 @@ public class InventoryController {
   InventoryDAO dao;
 
   @GET
-  public List<Item> getItems(@QueryParam("skip") @DefaultValue("-1") int skipCount, @QueryParam("count") @DefaultValue("-1") int resultCount, @QueryParam("randomize") @DefaultValue("false") boolean randomize) {
-    var result = dao.getItems();
-    if (randomize) {
-      Collections.shuffle(result, new Random(System.nanoTime()));
-    }
-    if (skipCount > 0) {
-      int listLen = result.size() - 1;
-      result = result.subList(skipCount, listLen);
-    }
-    if (resultCount > 0) {
-      return result.stream().limit(resultCount).collect(Collectors.toList());
-    }
-    return result;
+  public List<Item> getItems(@QueryParam("skip") @DefaultValue("0") int skipCount, @QueryParam("count") @DefaultValue("-1") int resultCount, @QueryParam("randomize") @DefaultValue("false") boolean randomize) {
+    return dao.getItems(resultCount, skipCount, randomize);
   }
 
   @GET
   @Path("/{sku}")
+  @Cache
   public Item getItemBySku(@PathParam("sku") String sku) {
     return dao.getItemBySku(sku);
   }
 
   @GET
   @Path("/name")
+  @Cache
   public List<Item> getItemByNameContains(@QueryParam("contains") String contains) {
     if (contains == null) {
       throw new BadRequestException("Required query paramter 'contains' is missing");
@@ -51,6 +44,7 @@ public class InventoryController {
 
   @GET
   @Path("/desc")
+  @Cache
   public List<Item> getItemByDescContains(@QueryParam("contains") String contains) {
     if (contains == null) {
       throw new BadRequestException("Required query paramter 'contains' is missing");

@@ -1,23 +1,20 @@
 package com.redhat.consulting.cache.wisely;
 
-import org.eclipse.microprofile.metrics.Timer;
-import org.eclipse.microprofile.metrics.annotation.Metric;
-import org.jboss.resteasy.annotations.cache.Cache;
+import io.opentracing.Span;
+import io.opentracing.Tracer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.enterprise.context.RequestScoped;
 import javax.inject.Inject;
-import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
+import javax.transaction.Transactional;
 import javax.validation.constraints.PositiveOrZero;
 import javax.ws.rs.*;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
-import java.util.stream.Stream;
 
 import static java.lang.String.format;
 
@@ -31,30 +28,16 @@ public class ShoppingCartController {
 
   @Inject
   HttpServletRequest request;
+
   @Inject
   InventoryDAO dao;
 
   @Inject
-  @Metric(name = "get_cart", description = "Time (in nanoseconds) to read the card from the cache")
-  Timer readTimer;
-
-  @Inject
-  @Metric(name = "add_to_cart", description = "Time (in nanoseconds) to save the cart to the cache")
-  Timer writeTimer;
-
+  Tracer tracer;
 
   @GET
   public ShoppingCart getShoppingCart(@Context HttpServletRequest req) {
-    ShoppingCart cart = readCartFromCache();
-
-    LOG.info("Request for session: {}", Arrays
-                                                .stream(req.getCookies())
-                                                .filter(c -> c.getName().compareTo("JSESSIONID") == 0)
-                                                .map(Cookie::getValue)
-                                                .findFirst()
-                                                .orElse(""));
-
-    return cart;
+    return readCartFromCache();
   }
 
   @GET
@@ -65,15 +48,10 @@ public class ShoppingCartController {
 
   @POST
   @Path("/{sku}")
+  @Transactional
   public CartItem addItemToCart(@Context HttpServletRequest req, @PathParam("sku") String sku, @QueryParam("quantity") @DefaultValue("1") @PositiveOrZero int quantity) {
+    LOG.info("Adding SKU '{}' and quantity '{}' to session with ID '{}'", sku, quantity, req.getSession().getId());
 
-    LOG.info("Request for session: {}", Arrays
-                                                .stream(req.getCookies())
-                                                .filter(c -> c.getName().compareTo("JSESSIONID") == 0)
-                                                .map(Cookie::getValue)
-                                                .findFirst()
-                                                .orElse(""));
-    LOG.info("Add item with SKU '{}' and quantity '{}' to cart", sku, quantity);
     var cart = readCartFromCache();
 
     var item = addSkuToCartById(sku, quantity, cart);
@@ -114,11 +92,13 @@ public class ShoppingCartController {
    */
   @GET
   @Path("/bulk")
+  @Transactional
   public ShoppingCart addMultipleSkusToCart(@Context HttpServletRequest req, @QueryParam("skus") String skuList) {
+    LOG.info("Adding SKUs {} to session with ID {}", skuList, req.getSession().getId());
     var cart = readCartFromCache();
 
-    Stream.of(skuList.split(","))
-      .forEach(sku -> addSkuToCartById(sku, 1, cart));
+    var ids = Arrays.asList(skuList.split(","));
+    dao.getItemsByIdList(ids).stream().forEach(i -> cart.addItem(new CartItem(i, 0)));
 
     writeCartToCache(cart);
     return cart;
@@ -128,38 +108,37 @@ public class ShoppingCartController {
    * Write the cart to the cache and capture the metrics
    * @param cart The {@link ShoppingCart} object instance
    */
-  private void writeCartToCache(ShoppingCart cart) {
+  public void writeCartToCache(ShoppingCart cart) {
+    Span span = tracer.buildSpan("writeCartToCache")
+      .asChildOf(tracer.activeSpan())
+      .start();
     cart.setLastModified(Instant.now().toEpochMilli());
-    Instant writeStart = Instant.now();
     request.getSession().setAttribute("cart", cart);
-    Instant writeStop = Instant.now();
-    writeTimer.update(Duration.between(writeStart, writeStop));
+    span.finish();
   }
 
   /**
    * Read the {@link ShoppingCart} object instance from the session cache
    * @return The {@link ShoppingCart} object instance retrieve or a new instance if one does not yet exist
    */
-  private ShoppingCart readCartFromCache() {
-    Instant readStart = Instant.now();
+  public ShoppingCart readCartFromCache() {
+    Span span = tracer.buildSpan("readCartFromCache")
+      .asChildOf(tracer.activeSpan())
+      .start();
     ShoppingCart cart = (ShoppingCart) request.getSession().getAttribute("cart");
-    Instant readStop = Instant.now();
     if (cart == null) {
       cart = new ShoppingCart();
     }
-    readTimer.update(Duration.between(readStart, readStop));
+    span.finish();
     return cart;
   }
 
   @DELETE
   @Path("/{sku}")
+  @Transactional
   public void removeFromCart(@Context HttpServletRequest req, @PathParam("sku") String sku) {
-    LOG.info("Request for session: {}", Arrays
-                                          .stream(req.getCookies())
-                                          .filter(c -> c.getName().compareTo("JSESSIONID") == 0)
-                                          .map(Cookie::getValue)
-                                          .findFirst()
-                                          .orElse(""));
+    LOG.info("Removing SKU {} from session with ID {}", sku, req.getSession().getId());
+
     ShoppingCart cart = readCartFromCache();
 
     cart.removeItemBySku(sku);

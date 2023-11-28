@@ -1,5 +1,6 @@
 package com.redhat.consulting.cache.wisely;
 
+import javax.enterprise.context.ApplicationScoped;
 import javax.enterprise.event.Observes;
 import javax.enterprise.inject.spi.AfterDeploymentValidation;
 import javax.enterprise.inject.spi.BeanManager;
@@ -13,6 +14,7 @@ import javax.naming.InitialContext;
 import javax.naming.NamingException;
 import javax.sql.DataSource;
 
+@ApplicationScoped
 public class FlywayExtension implements Extension {
 
   private final Logger LOG = Logger.getLogger(FlywayExtension.class);

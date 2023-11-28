@@ -1,3 +1,18 @@
+## Copyright 2023 Red Hat Inc.
+##
+## Licensed under the Apache License, Version 2.0 (the "License");
+## you may not use this file except in compliance with the License.
+## You may obtain a copy of the License at
+##
+##     http://www.apache.org/licenses/LICENSE-2.0
+##
+## Unless required by applicable law or agreed to in writing, software
+## distributed under the License is distributed on an "AS IS" BASIS,
+## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+## See the License for the specific language governing permissions and
+## limitations under the License.
+
+
 # Save the output of this file and use kubectl create -f to import
 # it into Kubernetes.
 #
@@ -10,6 +25,31 @@ metadata:
   name: monitoring
 spec:
   containers:
+    - name: jaeger
+      image: docker.io/jaegertracing/all-in-one:latest
+      restartPolicy: Always
+      ports:
+        - containerPort: 6831
+          hostPort: 6831
+          protocol: UDP
+        - containerPort: 5778
+          hostPort: 5778
+        - containerPort: 14268
+          hostPort: 14268
+        - containerPort: 16686
+          hostPort: 16686
+      env:
+        - name: SPAN_STORAGE_TYPE
+          value: badger
+        - name: BADGER_EPHEMERAL
+          value: false
+        - name: BADGER_DIRECTORY_VALUE
+          value: /badger/data
+        - name: BADGER_DIRECTORY_KEY
+          value: /badger/key
+      volumeMounts:
+        - mountPath: /badger
+          name: jaeger-data
     - name: prometheus
       image: docker.io/prom/prometheus:latest
       restartPolicy: Always
@@ -24,16 +64,25 @@ spec:
           name: prometheus-data
         - mountPath: /etc/prometheus/prometheus.yml
           name: prometheus-config
+    - name: snmp-exporter
+      image: quay.io/cloud-native-runtimes/prometheus_snmp_exporter:0.24.1
+      restartPolicy: Always
+      ports:
+        - containerPort: 9116
+          hostPort: 9116
+      volumeMounts:
+        - mountPath: /etc/snmp_exporter
+          name: snmp-exporter-config
     - name: grafana
       image: docker.io/grafana/grafana:latest
       restartPolicy: Always
-#      env:
-#        - name: GF_AUTH_ANONYMOUS_ENABLED
-#          value: 'true'
-#        - name: GF_AUTH_ORG_ROLE
-#          value: Admin
-#        - name: GF_AUTH_DISABLE_LOGIN_FORM
-#          value: 'true'
+      #      env:
+      #        - name: GF_AUTH_ANONYMOUS_ENABLED
+      #          value: 'true'
+      #        - name: GF_AUTH_ORG_ROLE
+      #          value: Admin
+      #        - name: GF_AUTH_DISABLE_LOGIN_FORM
+      #          value: 'true'
       ports:
         - containerPort: 3000
           hostPort: 3000
@@ -56,3 +105,9 @@ spec:
     - name: grafana-provisioning
       hostPath:
         path: ${PWD}/grafana
+    - name: snmp-exporter-config
+      hostPath:
+        path: ${PWD}/snmp_exporter
+    - name: jaeger-data
+      persistentVolumeClaim:
+        claimName: jaeger-data
